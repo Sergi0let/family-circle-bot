@@ -1,0 +1,32 @@
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "cjs"
+  importFileExtension = ""
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model FamilyGroup {
+  id             String         @id @default(cuid())
+  telegramChatId BigInt         @unique
+  title          String
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  members        FamilyMember[]
+}
+
+model FamilyMember {
+  id            String      @id @default(cuid())
+  familyGroupId String
+  firstName     String
+  lastName      String?
+  birthDate     DateTime
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  familyGroup   FamilyGroup @relation(fields: [familyGroupId], references: [id], onDelete: Cascade)
+
+  @@index([familyGroupId, birthDate])
+}
