@@ -4,6 +4,7 @@ import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from './../src/app.module';
 import { PrismaService } from './../src/prisma/prisma.service';
+import { TelegramBotService } from './../src/telegram/telegram-bot.service';
 
 describe('AppController (e2e)', () => {
   let app: INestApplication<App>;
@@ -14,6 +15,8 @@ describe('AppController (e2e)', () => {
     })
       .overrideProvider(PrismaService)
       .useValue({})
+      .overrideProvider(TelegramBotService)
+      .useValue({ isRunning: () => true })
       .compile();
 
     app = moduleFixture.createNestApplication();
@@ -24,7 +27,14 @@ describe('AppController (e2e)', () => {
     return request(app.getHttpServer())
       .get('/')
       .expect(200)
-      .expect('Hello World!');
+      .expect('Family Circle Bot');
+  });
+
+  it('/health (GET)', () => {
+    return request(app.getHttpServer())
+      .get('/health')
+      .expect(200)
+      .expect({ status: 'ok' });
   });
 
   afterEach(async () => {

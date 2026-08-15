@@ -36,4 +36,11 @@ export class FamilyGroupsService {
       where: { telegramChatId },
     });
   }
+
+  async listWithConnectedCalendar(): Promise<FamilyGroup[]> {
+    return this.prisma.familyGroup.findMany({
+      where: { googleCalendarId: { not: null } },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
 }

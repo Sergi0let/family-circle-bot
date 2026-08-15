@@ -50,16 +50,25 @@ export class GoogleCalendarService {
     rangeEnd.setUTCDate(rangeEnd.getUTCDate() + 1);
     rangeEnd.setUTCHours(rangeEnd.getUTCHours() + 14);
 
-    const response = await this.getClient().events.list({
-      calendarId,
-      timeMin: rangeStart.toISOString(),
-      timeMax: rangeEnd.toISOString(),
-      singleEvents: true,
-      orderBy: 'startTime',
-      timeZone,
-    });
+    const items: calendar_v3.Schema$Event[] = [];
+    let pageToken: string | undefined;
 
-    return (response.data.items ?? [])
+    do {
+      const response = await this.getClient().events.list({
+        calendarId,
+        timeMin: rangeStart.toISOString(),
+        timeMax: rangeEnd.toISOString(),
+        singleEvents: true,
+        orderBy: 'startTime',
+        timeZone,
+        maxResults: 2500,
+        pageToken,
+      });
+      items.push(...(response.data.items ?? []));
+      pageToken = response.data.nextPageToken ?? undefined;
+    } while (pageToken !== undefined);
+
+    return items
       .filter((event) => event.status !== 'cancelled')
       .map((event) => this.toFamilyCalendarEvent(event, timeZone))
       .filter(

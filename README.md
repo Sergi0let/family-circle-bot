@@ -1,129 +1,89 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Family Circle Bot
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Telegram bot for family-group calendar announcements. It reads a dedicated Google Calendar and posts each event scheduled for the current Kyiv day at 08:00; it never writes to Google Calendar.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Runtime architecture
 
-## Description
+```text
+Telegram group ──> grammY handlers ──> application services ──> Prisma / SQLite
+                                      └──────────────────────> Google Calendar API (read-only)
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
-
-## Project setup
-
-```bash
-$ pnpm install
+Nest Scheduler ──> delivery claim in SQLite ──> Telegram Bot API
 ```
 
-## Google Calendar
+- Telegram handlers only parse commands and render replies.
+- Any write requires an explicit confirmation callback before reaching an application service.
+- Calendar credentials are decoded and validated in the Google adapter; that adapter has no database access.
+- A unique SQLite constraint atomically claims a notification, preventing duplicate broadcasts from concurrent runs. A failed Telegram call releases the claim for retry.
 
-The bot reads events from a dedicated family Google Calendar. It never edits
-the calendar, and its Google service account uses the narrow
-`calendar.events.readonly` scope.
+## Prerequisites
 
-1. Create a Google Cloud service account, enable Google Calendar API, and
-   create a JSON key for it.
-2. Create a separate calendar for the family and share it with the service
-   account email using the **Reader** role.
-3. Base64-encode the JSON key without line breaks and set it in `.env`:
+- Node.js 22+ and Corepack
+- pnpm 9.15.9+
+- A Telegram bot token from BotFather
+- A Google Cloud service account with Google Calendar API enabled
+
+Create a dedicated family calendar and share it with the service-account email using the **Reader** role. The bot uses only `calendar.events.readonly` and cannot alter the calendar.
+
+## Configuration
 
 ```bash
+cp .env.example .env
 base64 -w0 service-account.json
 ```
 
+Set `GOOGLE_SERVICE_ACCOUNT_JSON_BASE64` to the generated one-line value, and never put the original JSON key in the repository. The minimum production configuration is:
+
 ```dotenv
-GOOGLE_SERVICE_ACCOUNT_JSON_BASE64="<base64 value>"
+NODE_ENV="production"
+HOST="127.0.0.1"
+PORT="3000"
+DATABASE_URL="file:/var/lib/family-circle-bot/family-circle.db"
+TELEGRAM_BOT_TOKEN="<token>"
+GOOGLE_SERVICE_ACCOUNT_JSON_BASE64="<base64 JSON>"
 GOOGLE_CALENDAR_TIME_ZONE="Europe/Kyiv"
 ```
 
-4. In the Telegram group, activate the bot and connect the calendar:
+`DATABASE_URL` must point to durable storage. Do not use a database inside an ephemeral deployment directory. Keep `.env` owner-readable only (`chmod 600 .env`).
+
+## Local development
+
+```bash
+corepack enable
+pnpm install --frozen-lockfile
+pnpm prisma:migrate
+pnpm start:dev
+```
+
+In a Telegram group:
 
 ```text
+/start
 /calendar_connect family-calendar-id@group.calendar.google.com
+/calendar_today
 ```
 
-The bot creates a confirmation draft before saving the calendar ID. After it
-is connected, `/calendar_today` lists today's events. Find the calendar ID in
-Google Calendar: **Settings and sharing → Integrate calendar → Calendar ID**.
+Only a group administrator can activate the bot or create and confirm `/calendar_connect` drafts. A connection draft lasts five minutes and the same administrator must confirm it before the calendar ID is saved.
 
-## Compile and run the project
+## Production release
 
 ```bash
-# development
-$ pnpm run start
-
-# watch mode
-$ pnpm run start:dev
-
-# production mode
-$ pnpm run start:prod
+pnpm install --frozen-lockfile
+pnpm check
+pnpm prisma:migrate:deploy
+pnpm build
+NODE_ENV=production pnpm start:prod
 ```
 
-## Run tests
+`GET /health` is a readiness endpoint: it returns `200` only after the Telegram long-polling process is running. Bind the HTTP listener to loopback unless a reverse proxy needs access. Run a single application instance with SQLite; horizontal scaling needs a shared database and a proper outbox/worker design.
+
+For Ubuntu, use the [systemd unit template](deploy/systemd/family-circle-bot.service.example). Create a dedicated `family-circle` system user, keep the environment file at `/etc/family-circle-bot/environment` with mode `0600`, and make `/var/lib/family-circle-bot` owned by that user before enabling the service.
+
+## Quality gates
 
 ```bash
-# unit tests
-$ pnpm run test
-
-# e2e tests
-$ pnpm run test:e2e
-
-# test coverage
-$ pnpm run test:cov
+pnpm check
+pnpm audit --prod --audit-level=high
 ```
 
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ pnpm install -g @nestjs/mau
-$ mau deploy
-```
-
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+`pnpm check` runs formatting verification, lint, unit tests, e2e tests, Prisma client generation, and the Nest build.

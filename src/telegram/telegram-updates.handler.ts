@@ -2,7 +2,6 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Bot, Context, InlineKeyboard } from 'grammy';
 import { confirmedWrite } from '../families/application/confirmed-write';
 import { FamilyGroupsService } from '../families/application/family-groups.service';
-import { replyWithFamilyMenu } from './telegram-menu';
 
 const ACTIVATE_FAMILY_GROUP_CALLBACK = 'family-group:activate';
 
@@ -38,7 +37,7 @@ export class TelegramUpdatesHandler {
     );
 
     await context.reply(
-      'Готовий допомагати з днями народження. Підтвердь активацію цієї групи.',
+      'Показуватиму свята з підключеного Google Calendar. Підтвердь активацію цієї групи.',
       { reply_markup: keyboard },
     );
   }
@@ -57,6 +56,14 @@ export class TelegramUpdatesHandler {
       return;
     }
 
+    if (!(await this.isGroupAdministrator(context, chat.id))) {
+      await context.answerCallbackQuery({
+        text: 'Активувати групу може лише адміністратор.',
+        show_alert: true,
+      });
+      return;
+    }
+
     const familyGroup = await this.familyGroupsService.register(
       confirmedWrite({
         telegramChatId: BigInt(chat.id),
@@ -68,12 +75,31 @@ export class TelegramUpdatesHandler {
       text: 'Групу активовано.',
     });
     await context.editMessageText(
-      `Family Circle активовано для «${familyGroup.title}».`,
-    );
-    await replyWithFamilyMenu(
-      context,
-      'Використовуй кнопки меню для роботи з ботом.',
+      `Family Circle активовано для «${familyGroup.title}».\n\nПідключи календар: /calendar_connect ID_календаря`,
     );
     this.logger.log(`Activated family group ${familyGroup.id}.`);
+  }
+
+  private async isGroupAdministrator(
+    context: Context,
+    chatId: number,
+  ): Promise<boolean> {
+    const user = context.from;
+
+    if (user === undefined) {
+      return false;
+    }
+
+    try {
+      const member = await context.api.getChatMember(chatId, user.id);
+      return member.status === 'administrator' || member.status === 'creator';
+    } catch (error: unknown) {
+      const details = error instanceof Error ? error.stack : String(error);
+      this.logger.warn(
+        'Could not verify the Telegram administrator role.',
+        details,
+      );
+      return false;
+    }
   }
 }

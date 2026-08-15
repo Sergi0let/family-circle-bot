@@ -1,19 +1,16 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Bot, Context, InlineKeyboard } from 'grammy';
-import { confirmedWrite } from '../families/application/confirmed-write';
-import { FamilyGroupsService } from '../families/application/family-groups.service';
 import { CalendarConnectionsService } from '../calendar/application/calendar-connections.service';
 import { FamilyCalendarService } from '../calendar/application/family-calendar.service';
+import { confirmedWrite } from '../families/application/confirmed-write';
+import { FamilyGroupsService } from '../families/application/family-groups.service';
 import { PendingCalendarConnectionStore } from './pending-calendar-connection.store';
-import {
-  CALENDAR_TODAY_MENU_ACTION,
-  replyWithFamilyMenu,
-} from './telegram-menu';
 
 const CALENDAR_CONNECT_CALLBACK_PATTERN =
   /^calendar-connect:(confirm|cancel):([0-9a-f-]{36})$/u;
 const CALENDAR_CONNECT_USAGE =
   'Використання: /calendar_connect ID_календаря\n\nID знайдеш у Google Calendar: Налаштування календаря → Інтеграція календаря → Ідентифікатор календаря.';
+const REMOVE_LEGACY_KEYBOARD = { remove_keyboard: true } as const;
 
 @Injectable()
 export class TelegramCalendarHandler {
@@ -33,9 +30,6 @@ export class TelegramCalendarHandler {
     bot.command('calendar_today', (context) =>
       this.handleCalendarToday(context),
     );
-    bot.hears(CALENDAR_TODAY_MENU_ACTION, (context) =>
-      this.handleCalendarToday(context),
-    );
     bot.callbackQuery(CALENDAR_CONNECT_CALLBACK_PATTERN, (context) =>
       this.handleCalendarConnectionCallback(context),
     );
@@ -47,12 +41,20 @@ export class TelegramCalendarHandler {
     const calendarId = this.getCommandArguments(context);
 
     if (chat === null || user === undefined) {
-      await context.reply('Ця команда доступна лише у сімейній групі.');
+      await this.reply(context, 'Ця команда доступна лише у сімейній групі.');
       return;
     }
 
     if (calendarId.length === 0) {
-      await context.reply(CALENDAR_CONNECT_USAGE);
+      await this.reply(context, CALENDAR_CONNECT_USAGE);
+      return;
+    }
+
+    if (!(await this.isGroupAdministrator(context, chat.id))) {
+      await this.reply(
+        context,
+        'Підключити або змінити календар може лише адміністратор групи.',
+      );
       return;
     }
 
@@ -61,7 +63,7 @@ export class TelegramCalendarHandler {
     );
 
     if (familyGroup === null) {
-      await context.reply('Спочатку активуй групу командою /start.');
+      await this.reply(context, 'Спочатку активуй групу командою /start.');
       return;
     }
 
@@ -77,14 +79,15 @@ export class TelegramCalendarHandler {
       .text('Підтвердити', `calendar-connect:confirm:${draft.id}`)
       .text('Скасувати', `calendar-connect:cancel:${draft.id}`);
 
-    await context.reply(
+    await this.reply(
+      context,
       [
         'Чернетка підключення Google Calendar:',
         `Календар: ${calendarId}`,
         '',
         'Після підтвердження бот лише перевірить і читатиме події цього календаря.',
       ].join('\n'),
-      { reply_markup: keyboard },
+      keyboard,
     );
   }
 
@@ -92,7 +95,7 @@ export class TelegramCalendarHandler {
     const chat = this.getGroupChat(context);
 
     if (chat === null) {
-      await context.reply('Ця команда доступна лише у сімейній групі.');
+      await this.reply(context, 'Ця команда доступна лише у сімейній групі.');
       return;
     }
 
@@ -103,34 +106,33 @@ export class TelegramCalendarHandler {
         );
 
       if (!calendar.isKnownGroup) {
-        await replyWithFamilyMenu(
-          context,
-          'Спочатку активуй групу командою /start.',
-        );
+        await this.reply(context, 'Спочатку активуй групу командою /start.');
         return;
       }
 
       if (!calendar.isConnected) {
-        await replyWithFamilyMenu(
+        await this.reply(
           context,
           `Google Calendar ще не підключено.\n\n${CALENDAR_CONNECT_USAGE}`,
         );
         return;
       }
 
-      const text =
-        calendar.events.length === 0
-          ? 'На сьогодні подій у сімейному календарі немає.'
-          : [
-              'Події на сьогодні:',
-              ...calendar.events.map((event) => `• ${event.summary}`),
-            ].join('\n');
+      if (calendar.events.length === 0) {
+        await this.reply(
+          context,
+          'На сьогодні подій у сімейному календарі немає.',
+        );
+        return;
+      }
 
-      await replyWithFamilyMenu(context, text);
+      for (const event of calendar.events) {
+        await this.reply(context, `🕊 ${event.summary}`);
+      }
     } catch (error: unknown) {
       const details = error instanceof Error ? error.stack : String(error);
       this.logger.error('Failed to read Google Calendar events.', details);
-      await replyWithFamilyMenu(
+      await this.reply(
         context,
         'Не вдалося прочитати Google Calendar. Перевір, що календар поширено для service account із роллю Reader.',
       );
@@ -151,6 +153,14 @@ export class TelegramCalendarHandler {
     ) {
       await context.answerCallbackQuery({
         text: 'Не вдалося обробити підтвердження.',
+        show_alert: true,
+      });
+      return;
+    }
+
+    if (!(await this.isGroupAdministrator(context, chat.id))) {
+      await context.answerCallbackQuery({
+        text: 'Підтвердити підключення може лише адміністратор групи.',
         show_alert: true,
       });
       return;
@@ -233,5 +243,38 @@ export class TelegramCalendarHandler {
 
     const command = /^\/calendar_connect(?:@\w+)?(?:\s+|$)/u.exec(text);
     return command === null ? '' : text.slice(command[0].length).trim();
+  }
+
+  private async isGroupAdministrator(
+    context: Context,
+    chatId: number,
+  ): Promise<boolean> {
+    const user = context.from;
+
+    if (user === undefined) {
+      return false;
+    }
+
+    try {
+      const member = await context.api.getChatMember(chatId, user.id);
+      return member.status === 'administrator' || member.status === 'creator';
+    } catch (error: unknown) {
+      const details = error instanceof Error ? error.stack : String(error);
+      this.logger.warn(
+        'Could not verify the Telegram administrator role.',
+        details,
+      );
+      return false;
+    }
+  }
+
+  private async reply(
+    context: Context,
+    text: string,
+    inlineKeyboard?: InlineKeyboard,
+  ): Promise<void> {
+    await context.reply(text, {
+      reply_markup: inlineKeyboard ?? REMOVE_LEGACY_KEYBOARD,
+    });
   }
 }

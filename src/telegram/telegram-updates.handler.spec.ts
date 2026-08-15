@@ -6,12 +6,15 @@ describe('TelegramUpdatesHandler', () => {
   const familyGroupsServiceMock = {
     register: jest.fn(),
   };
+  const administrator = { status: 'administrator' };
+  const api = { getChatMember: jest.fn() };
   const handler = new TelegramUpdatesHandler(
     familyGroupsServiceMock as unknown as FamilyGroupsService,
   );
 
   beforeEach(() => {
     jest.clearAllMocks();
+    api.getChatMember.mockResolvedValue(administrator);
   });
 
   it('asks for confirmation before registering a group', async () => {
@@ -29,7 +32,7 @@ describe('TelegramUpdatesHandler', () => {
 
     expect(familyGroupsServiceMock.register).not.toHaveBeenCalled();
     expect(reply).toHaveBeenCalledWith(
-      'Готовий допомагати з днями народження. Підтвердь активацію цієї групи.',
+      'Показуватиму свята з підключеного Google Calendar. Підтвердь активацію цієї групи.',
       expect.any(Object),
     );
   });
@@ -51,6 +54,8 @@ describe('TelegramUpdatesHandler', () => {
         type: 'supergroup',
         title: 'Family Circle',
       },
+      from: { id: 12345 },
+      api,
       answerCallbackQuery,
       editMessageText,
       reply,
@@ -61,7 +66,7 @@ describe('TelegramUpdatesHandler', () => {
 
     expect(familyGroupsServiceMock.register).toHaveBeenCalledTimes(1);
     expect(editMessageText).toHaveBeenCalledWith(
-      'Family Circle активовано для «Family Circle».',
+      'Family Circle активовано для «Family Circle».\n\nПідключи календар: /calendar_connect ID_календаря',
     );
   });
 
@@ -77,6 +82,25 @@ describe('TelegramUpdatesHandler', () => {
     expect(familyGroupsServiceMock.register).not.toHaveBeenCalled();
     expect(answerCallbackQuery).toHaveBeenCalledWith({
       text: 'Активація доступна лише у групі.',
+      show_alert: true,
+    });
+  });
+
+  it('does not allow a non-administrator to activate a group', async () => {
+    api.getChatMember.mockResolvedValue({ status: 'member' });
+    const answerCallbackQuery = jest.fn().mockResolvedValue(undefined);
+    const context = {
+      chat: { id: -1001234567890, type: 'supergroup', title: 'Family Circle' },
+      from: { id: 12345 },
+      api,
+      answerCallbackQuery,
+    };
+
+    await handler.handleGroupActivation(context as unknown as Context);
+
+    expect(familyGroupsServiceMock.register).not.toHaveBeenCalled();
+    expect(answerCallbackQuery).toHaveBeenCalledWith({
+      text: 'Активувати групу може лише адміністратор.',
       show_alert: true,
     });
   });

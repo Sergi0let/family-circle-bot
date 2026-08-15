@@ -10,24 +10,22 @@ datasource db {
 }
 
 model FamilyGroup {
-  id               String         @id @default(cuid())
-  telegramChatId   BigInt         @unique
-  title            String
-  googleCalendarId String?
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
-  members          FamilyMember[]
+  id                 String                  @id @default(cuid())
+  telegramChatId     BigInt                  @unique
+  title              String
+  googleCalendarId   String?
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+  calendarDeliveries CalendarEventDelivery[]
 }
 
-model FamilyMember {
-  id            String      @id @default(cuid())
-  familyGroupId String
-  firstName     String
-  lastName      String?
-  birthDate     DateTime
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
-  familyGroup   FamilyGroup @relation(fields: [familyGroupId], references: [id], onDelete: Cascade)
+model CalendarEventDelivery {
+  id              String      @id @default(cuid())
+  familyGroupId   String
+  calendarEventId String
+  occurrenceDate  DateTime
+  sentAt          DateTime    @default(now())
+  familyGroup     FamilyGroup @relation(fields: [familyGroupId], references: [id], onDelete: Cascade)
 
-  @@index([familyGroupId, birthDate])
+  @@unique([familyGroupId, calendarEventId, occurrenceDate])
 }
