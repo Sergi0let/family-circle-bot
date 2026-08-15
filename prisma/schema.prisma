@@ -10,12 +10,13 @@ datasource db {
 }
 
 model FamilyGroup {
-  id             String         @id @default(cuid())
-  telegramChatId BigInt         @unique
-  title          String
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-  members        FamilyMember[]
+  id               String         @id @default(cuid())
+  telegramChatId   BigInt         @unique
+  title            String
+  googleCalendarId String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  members          FamilyMember[]
 }
 
 model FamilyMember {

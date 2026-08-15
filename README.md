@@ -31,6 +31,37 @@
 $ pnpm install
 ```
 
+## Google Calendar
+
+The bot reads events from a dedicated family Google Calendar. It never edits
+the calendar, and its Google service account uses the narrow
+`calendar.events.readonly` scope.
+
+1. Create a Google Cloud service account, enable Google Calendar API, and
+   create a JSON key for it.
+2. Create a separate calendar for the family and share it with the service
+   account email using the **Reader** role.
+3. Base64-encode the JSON key without line breaks and set it in `.env`:
+
+```bash
+base64 -w0 service-account.json
+```
+
+```dotenv
+GOOGLE_SERVICE_ACCOUNT_JSON_BASE64="<base64 value>"
+GOOGLE_CALENDAR_TIME_ZONE="Europe/Kyiv"
+```
+
+4. In the Telegram group, activate the bot and connect the calendar:
+
+```text
+/calendar_connect family-calendar-id@group.calendar.google.com
+```
+
+The bot creates a confirmation draft before saving the calendar ID. After it
+is connected, `/calendar_today` lists today's events. Find the calendar ID in
+Google Calendar: **Settings and sharing → Integrate calendar → Calendar ID**.
+
 ## Compile and run the project
 
 ```bash
