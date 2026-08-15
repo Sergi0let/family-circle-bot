@@ -1,21 +1,20 @@
 import { Module } from '@nestjs/common';
-import { FamiliesModule } from '../families/families.module';
 import { CalendarModule } from '../calendar/calendar.module';
-import { PendingCalendarConnectionStore } from './pending-calendar-connection.store';
 import { TelegramBotService } from './telegram-bot.service';
 import { TelegramCalendarBroadcastService } from './telegram-calendar-broadcast.service';
 import { TelegramCalendarHandler } from './telegram-calendar.handler';
 import { TelegramUpdatesHandler } from './telegram-updates.handler';
+import { TelegramWebhookController } from './telegram-webhook.controller';
 
 @Module({
-  imports: [FamiliesModule, CalendarModule],
+  imports: [CalendarModule],
+  controllers: [TelegramWebhookController],
   providers: [
     TelegramBotService,
     TelegramUpdatesHandler,
     TelegramCalendarHandler,
-    PendingCalendarConnectionStore,
     TelegramCalendarBroadcastService,
   ],
-  exports: [TelegramBotService],
+  exports: [TelegramBotService, TelegramCalendarBroadcastService],
 })
 export class TelegramModule {}

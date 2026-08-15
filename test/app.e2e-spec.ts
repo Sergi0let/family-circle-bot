@@ -3,7 +3,6 @@ import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from './../src/app.module';
-import { PrismaService } from './../src/prisma/prisma.service';
 import { TelegramBotService } from './../src/telegram/telegram-bot.service';
 
 describe('AppController (e2e)', () => {
@@ -13,10 +12,8 @@ describe('AppController (e2e)', () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     })
-      .overrideProvider(PrismaService)
-      .useValue({})
       .overrideProvider(TelegramBotService)
-      .useValue({ isRunning: () => true })
+      .useValue({ isReady: () => true })
       .compile();
 
     app = moduleFixture.createNestApplication();

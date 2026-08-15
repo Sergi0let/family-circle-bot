@@ -1,105 +1,56 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Bot, Context, InlineKeyboard } from 'grammy';
-import { confirmedWrite } from '../families/application/confirmed-write';
-import { FamilyGroupsService } from '../families/application/family-groups.service';
-
-const ACTIVATE_FAMILY_GROUP_CALLBACK = 'family-group:activate';
+import { ConfigService } from '@nestjs/config';
+import { Bot, Context } from 'grammy';
 
 @Injectable()
 export class TelegramUpdatesHandler {
   private readonly logger = new Logger(TelegramUpdatesHandler.name);
 
-  constructor(private readonly familyGroupsService: FamilyGroupsService) {}
+  constructor(private readonly configService: ConfigService) {}
 
   register(bot: Bot<Context>): void {
     bot.command('start', (context) => this.handleStart(context));
-    bot.callbackQuery(ACTIVATE_FAMILY_GROUP_CALLBACK, (context) =>
-      this.handleGroupActivation(context),
-    );
   }
 
   async handleStart(context: Context): Promise<void> {
     const chat = context.chat;
 
-    if (
-      chat === undefined ||
-      (chat.type !== 'group' && chat.type !== 'supergroup')
-    ) {
+    if (chat === undefined || chat.type === 'private') {
       await context.reply(
-        'Додай мене до сімейної групи та виконай /start саме там.',
+        'Додай мене до сімейної групи та виконай /start там.',
       );
       return;
     }
 
-    const keyboard = new InlineKeyboard().text(
-      'Активувати Family Circle',
-      ACTIVATE_FAMILY_GROUP_CALLBACK,
-    );
+    const configuredChatId = this.configService.get<string>('TELEGRAM_CHAT_ID');
+
+    if (configuredChatId === undefined) {
+      this.logger.warn(
+        `TELEGRAM_CHAT_ID is not configured. Received /start from chat ${chat.id}.`,
+      );
+      await context.reply(
+        `ID цієї групи: ${chat.id}\n\nДодай його до TELEGRAM_CHAT_ID у .env і перезапусти бота.`,
+      );
+      return;
+    }
+
+    if (!this.isConfiguredGroup(context)) {
+      await context.reply('Цей бот налаштований для іншої сімейної групи.');
+      return;
+    }
 
     await context.reply(
-      'Показуватиму свята з підключеного Google Calendar. Підтвердь активацію цієї групи.',
-      { reply_markup: keyboard },
+      'Family Circle активний. Переглянь події на сьогодні командою /calendar_today.',
     );
   }
 
-  async handleGroupActivation(context: Context): Promise<void> {
+  private isConfiguredGroup(context: Context): boolean {
     const chat = context.chat;
 
-    if (
-      chat === undefined ||
-      (chat.type !== 'group' && chat.type !== 'supergroup')
-    ) {
-      await context.answerCallbackQuery({
-        text: 'Активація доступна лише у групі.',
-        show_alert: true,
-      });
-      return;
-    }
-
-    if (!(await this.isGroupAdministrator(context, chat.id))) {
-      await context.answerCallbackQuery({
-        text: 'Активувати групу може лише адміністратор.',
-        show_alert: true,
-      });
-      return;
-    }
-
-    const familyGroup = await this.familyGroupsService.register(
-      confirmedWrite({
-        telegramChatId: BigInt(chat.id),
-        title: chat.title,
-      }),
+    return (
+      chat !== undefined &&
+      (chat.type === 'group' || chat.type === 'supergroup') &&
+      String(chat.id) === this.configService.get<string>('TELEGRAM_CHAT_ID')
     );
-
-    await context.answerCallbackQuery({
-      text: 'Групу активовано.',
-    });
-    await context.editMessageText(
-      `Family Circle активовано для «${familyGroup.title}».\n\nПідключи календар: /calendar_connect ID_календаря`,
-    );
-    this.logger.log(`Activated family group ${familyGroup.id}.`);
-  }
-
-  private async isGroupAdministrator(
-    context: Context,
-    chatId: number,
-  ): Promise<boolean> {
-    const user = context.from;
-
-    if (user === undefined) {
-      return false;
-    }
-
-    try {
-      const member = await context.api.getChatMember(chatId, user.id);
-      return member.status === 'administrator' || member.status === 'creator';
-    } catch (error: unknown) {
-      const details = error instanceof Error ? error.stack : String(error);
-      this.logger.warn(
-        'Could not verify the Telegram administrator role.',
-        details,
-      );
-      return false;
-    }
   }
 }

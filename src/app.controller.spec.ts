@@ -11,7 +11,7 @@ describe('AppController', () => {
       controllers: [AppController],
       providers: [
         AppService,
-        { provide: TelegramBotService, useValue: { isRunning: jest.fn() } },
+        { provide: TelegramBotService, useValue: { isReady: jest.fn() } },
       ],
     }).compile();
 

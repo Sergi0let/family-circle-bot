@@ -10,8 +10,8 @@ export class AppService {
   }
 
   getHealth(): { readonly status: 'ok' } {
-    if (!this.telegramBotService.isRunning()) {
-      throw new ServiceUnavailableException('Telegram bot is not running.');
+    if (!this.telegramBotService.isReady()) {
+      throw new ServiceUnavailableException('Telegram bot is not ready.');
     }
 
     return { status: 'ok' };

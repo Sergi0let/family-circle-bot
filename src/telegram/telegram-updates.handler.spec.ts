@@ -1,23 +1,20 @@
+import { ConfigService } from '@nestjs/config';
 import { Context } from 'grammy';
-import { FamilyGroupsService } from '../families/application/family-groups.service';
 import { TelegramUpdatesHandler } from './telegram-updates.handler';
 
 describe('TelegramUpdatesHandler', () => {
-  const familyGroupsServiceMock = {
-    register: jest.fn(),
-  };
-  const administrator = { status: 'administrator' };
-  const api = { getChatMember: jest.fn() };
+  const configServiceMock = { get: jest.fn(), getOrThrow: jest.fn() };
   const handler = new TelegramUpdatesHandler(
-    familyGroupsServiceMock as unknown as FamilyGroupsService,
+    configServiceMock as unknown as ConfigService,
   );
 
   beforeEach(() => {
     jest.clearAllMocks();
-    api.getChatMember.mockResolvedValue(administrator);
+    configServiceMock.get.mockReturnValue('-1001234567890');
+    configServiceMock.getOrThrow.mockReturnValue('-1001234567890');
   });
 
-  it('asks for confirmation before registering a group', async () => {
+  it('confirms activation in the configured group', async () => {
     const reply = jest.fn().mockResolvedValue(undefined);
     const context = {
       chat: {
@@ -30,23 +27,28 @@ describe('TelegramUpdatesHandler', () => {
 
     await handler.handleStart(context as unknown as Context);
 
-    expect(familyGroupsServiceMock.register).not.toHaveBeenCalled();
     expect(reply).toHaveBeenCalledWith(
-      'Показуватиму свята з підключеного Google Calendar. Підтвердь активацію цієї групи.',
-      expect.any(Object),
+      'Family Circle активний. Переглянь події на сьогодні командою /calendar_today.',
     );
   });
 
-  it('registers a group after the activation callback', async () => {
-    const familyGroup = {
-      id: 'family-group-id',
-      telegramChatId: -1001234567890n,
-      title: 'Family Circle',
-      createdAt: new Date('2026-01-01T00:00:00.000Z'),
-      updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+  it('does not activate in another group', async () => {
+    const reply = jest.fn().mockResolvedValue(undefined);
+    const context = {
+      chat: { id: -1009876543210, type: 'supergroup', title: 'Other group' },
+      reply,
     };
-    const answerCallbackQuery = jest.fn().mockResolvedValue(undefined);
-    const editMessageText = jest.fn().mockResolvedValue(undefined);
+
+    await handler.handleStart(context as unknown as Context);
+
+    expect(reply).toHaveBeenCalledWith(
+      'Цей бот налаштований для іншої сімейної групи.',
+    );
+  });
+
+  it('shows the chat ID when local configuration is incomplete', async () => {
+    configServiceMock.getOrThrow.mockReturnValue(undefined);
+    configServiceMock.get.mockReturnValue(undefined);
     const reply = jest.fn().mockResolvedValue(undefined);
     const context = {
       chat: {
@@ -54,54 +56,13 @@ describe('TelegramUpdatesHandler', () => {
         type: 'supergroup',
         title: 'Family Circle',
       },
-      from: { id: 12345 },
-      api,
-      answerCallbackQuery,
-      editMessageText,
       reply,
     };
-    familyGroupsServiceMock.register.mockResolvedValue(familyGroup);
 
-    await handler.handleGroupActivation(context as unknown as Context);
+    await handler.handleStart(context as unknown as Context);
 
-    expect(familyGroupsServiceMock.register).toHaveBeenCalledTimes(1);
-    expect(editMessageText).toHaveBeenCalledWith(
-      'Family Circle активовано для «Family Circle».\n\nПідключи календар: /calendar_connect ID_календаря',
+    expect(reply).toHaveBeenCalledWith(
+      'ID цієї групи: -1001234567890\n\nДодай його до TELEGRAM_CHAT_ID у .env і перезапусти бота.',
     );
-  });
-
-  it('does not allow group activation in a private chat', async () => {
-    const answerCallbackQuery = jest.fn().mockResolvedValue(undefined);
-    const context = {
-      chat: { id: 123456789, type: 'private' },
-      answerCallbackQuery,
-    };
-
-    await handler.handleGroupActivation(context as unknown as Context);
-
-    expect(familyGroupsServiceMock.register).not.toHaveBeenCalled();
-    expect(answerCallbackQuery).toHaveBeenCalledWith({
-      text: 'Активація доступна лише у групі.',
-      show_alert: true,
-    });
-  });
-
-  it('does not allow a non-administrator to activate a group', async () => {
-    api.getChatMember.mockResolvedValue({ status: 'member' });
-    const answerCallbackQuery = jest.fn().mockResolvedValue(undefined);
-    const context = {
-      chat: { id: -1001234567890, type: 'supergroup', title: 'Family Circle' },
-      from: { id: 12345 },
-      api,
-      answerCallbackQuery,
-    };
-
-    await handler.handleGroupActivation(context as unknown as Context);
-
-    expect(familyGroupsServiceMock.register).not.toHaveBeenCalled();
-    expect(answerCallbackQuery).toHaveBeenCalledWith({
-      text: 'Активувати групу може лише адміністратор.',
-      show_alert: true,
-    });
   });
 });

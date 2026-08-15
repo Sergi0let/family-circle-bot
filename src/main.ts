@@ -12,11 +12,13 @@ async function bootstrap() {
     'disable'
   >;
   expressApp.disable('x-powered-by');
-  await app.get(TelegramBotService).start();
+  const telegramBotService = app.get(TelegramBotService);
+  await telegramBotService.initialize();
   const configService = app.get(ConfigService);
   await app.listen(
     configService.getOrThrow<number>('PORT'),
     configService.getOrThrow<string>('HOST'),
   );
+  await telegramBotService.activateTransport();
 }
 void bootstrap();
