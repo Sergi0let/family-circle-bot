@@ -36,9 +36,12 @@ Generate the Google secret value without creating a JSON key in the repository:
 base64 -w0 service-account.json
 ```
 
-## Northflank deployment
+## Deployment
 
-See [the exact Northflank setup](deploy/northflank/README.md). In short, create one public Git service and two cron jobs from this repository; do not create a database addon.
+See the platform-specific setup guides:
+
+- [Easypanel](deploy/easypanel/README.md)
+- [Northflank](deploy/northflank/README.md)
 
 Production variables:
 

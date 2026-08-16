@@ -1,0 +1,12 @@
+.env
+.env.*
+!.env.example
+.git
+.vscode
+coverage
+dist
+node_modules
+npm-debug.log
+pnpm-debug.log
+*.sqlite
+*.sqlite3

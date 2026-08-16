@@ -1,0 +1,4 @@
+# The container runs in UTC. The application itself verifies the Kyiv hour, so
+# either side of the daylight-saving transition still produces one broadcast.
+30 6,7 * * * root su -s /bin/sh node -c '/usr/local/bin/node /app/cron-job-runner.mjs publish' >> /proc/1/fd/1 2>&1
+0 9 * * * root su -s /bin/sh node -c '/usr/local/bin/node /app/cron-job-runner.mjs verify' >> /proc/1/fd/1 2>&1
