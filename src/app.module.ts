@@ -4,6 +4,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { CalendarModule } from './calendar/calendar.module';
 import { validateEnvironment } from './config/environment';
+import { GreetingsModule } from './greetings/greetings.module';
 import { TelegramModule } from './telegram/telegram.module';
 
 @Module({
@@ -14,6 +15,7 @@ import { TelegramModule } from './telegram/telegram.module';
       validate: validateEnvironment,
     }),
     CalendarModule,
+    GreetingsModule,
     TelegramModule,
   ],
   controllers: [AppController],

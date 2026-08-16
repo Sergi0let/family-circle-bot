@@ -7,7 +7,10 @@ const optionalText = z.preprocess(
 );
 
 const environmentSchema = z.object({
+  ANTHROPIC_API_KEY: optionalText,
+  ANTHROPIC_MODEL: z.string().trim().min(1).default('claude-haiku-4-5'),
   GOOGLE_CALENDAR_ID: optionalText,
+  GOOGLE_PUBLIC_HOLIDAYS_CALENDAR_ID: optionalText,
   GOOGLE_CALENDAR_TIME_ZONE: z.string().trim().min(1).default('Europe/Kyiv'),
   GOOGLE_SERVICE_ACCOUNT_JSON_BASE64: optionalText,
   HOST: z.string().trim().min(1).default('0.0.0.0'),

@@ -30,13 +30,13 @@ Create a cron job from the same Git repository, reuse the same secrets group, an
 ```text
 Build:              pnpm install --frozen-lockfile && pnpm build
 Run:                pnpm cron:publish-calendar
-Schedule (UTC):     0 5,6 * * *
+Schedule (UTC):     30 6,7 * * *
 Concurrency policy: Forbid
 Retry limit:        1
 Time limit:         120 seconds
 ```
 
-Northflank cron schedules are UTC. The job runs at both candidate UTC times for Kyiv 08:00; the application sends messages only when the current Kyiv hour is 08. This avoids changing the schedule between winter and summer time.
+Northflank cron schedules are UTC. The job runs at both candidate UTC times for Kyiv 09:30; the application sends messages only when the current Kyiv hour is 09. This avoids changing the schedule between winter and summer time and tolerates a delayed job start.
 
 Run it manually once after deployment and inspect the Northflank job log before activating the schedule.
 

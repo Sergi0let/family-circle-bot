@@ -2,6 +2,10 @@ import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { calendar_v3, google } from 'googleapis';
 import { z } from 'zod';
+import {
+  CalendarEventSource,
+  FamilyCalendarEvent,
+} from '../application/family-calendar-event';
 
 const GOOGLE_CALENDAR_EVENTS_READONLY_SCOPE =
   'https://www.googleapis.com/auth/calendar.events.readonly';
@@ -11,14 +15,6 @@ const serviceAccountSchema = z.object({
   client_email: z.string().email(),
   private_key: z.string().min(1),
 });
-
-export interface FamilyCalendarEvent {
-  readonly id: string;
-  readonly summary: string;
-  readonly startsOn: string;
-  readonly isAllDay: boolean;
-  readonly htmlLink: string | null;
-}
 
 @Injectable()
 export class GoogleCalendarService {
@@ -37,6 +33,7 @@ export class GoogleCalendarService {
   async listEventsForToday(
     calendarId: string,
     now: Date,
+    source: CalendarEventSource = 'family',
   ): Promise<FamilyCalendarEvent[]> {
     const timeZone = this.configService.get<string>(
       'GOOGLE_CALENDAR_TIME_ZONE',
@@ -70,7 +67,7 @@ export class GoogleCalendarService {
 
     return items
       .filter((event) => event.status !== 'cancelled')
-      .map((event) => this.toFamilyCalendarEvent(event, timeZone))
+      .map((event) => this.toFamilyCalendarEvent(event, timeZone, source))
       .filter(
         (event): event is FamilyCalendarEvent =>
           event !== null && event.startsOn === targetDate,
@@ -135,6 +132,7 @@ export class GoogleCalendarService {
   private toFamilyCalendarEvent(
     event: calendar_v3.Schema$Event,
     timeZone: string,
+    source: CalendarEventSource,
   ): FamilyCalendarEvent | null {
     if (
       event.id === undefined ||
@@ -155,7 +153,10 @@ export class GoogleCalendarService {
     }
 
     return {
+      description: event.description?.trim() || null,
       id: event.id,
+      iCalUID: event.iCalUID ?? null,
+      source,
       summary: event.summary?.trim() || 'Подія без назви',
       startsOn:
         allDayDate ??

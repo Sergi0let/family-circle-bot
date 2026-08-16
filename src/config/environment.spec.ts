@@ -3,6 +3,7 @@ import { validateEnvironment } from './environment';
 describe('validateEnvironment', () => {
   it('uses safe local defaults', () => {
     expect(validateEnvironment({})).toMatchObject({
+      ANTHROPIC_MODEL: 'claude-haiku-4-5',
       HOST: '0.0.0.0',
       NODE_ENV: 'development',
       PORT: 3000,
@@ -14,11 +15,13 @@ describe('validateEnvironment', () => {
     expect(
       validateEnvironment({
         GOOGLE_CALENDAR_ID: '',
+        GOOGLE_PUBLIC_HOLIDAYS_CALENDAR_ID: '   ',
         TELEGRAM_WEBHOOK_SECRET: '   ',
         TELEGRAM_WEBHOOK_URL: '',
       }),
     ).toMatchObject({
       GOOGLE_CALENDAR_ID: undefined,
+      GOOGLE_PUBLIC_HOLIDAYS_CALENDAR_ID: undefined,
       TELEGRAM_WEBHOOK_SECRET: undefined,
       TELEGRAM_WEBHOOK_URL: undefined,
     });

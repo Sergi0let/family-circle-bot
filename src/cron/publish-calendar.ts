@@ -9,7 +9,9 @@ async function bootstrap(): Promise<void> {
 
   try {
     await app.get(TelegramBotService).initialize();
-    await app.get(TelegramCalendarBroadcastService).publishIfKyivMorning();
+    await app
+      .get(TelegramCalendarBroadcastService)
+      .publishIfKyivScheduledTime();
   } finally {
     await app.close();
   }
