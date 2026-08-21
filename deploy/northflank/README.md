@@ -3,18 +3,15 @@
 ## 1. Create the public service
 
 1. Create a Northflank project and connect the GitHub repository.
-2. Create a combined/build service from the `main` branch with CI/CD enabled.
-3. Use the Node.js buildpack with these commands:
-
-   ```text
-   Build: pnpm install --frozen-lockfile && pnpm build
-   Run:   pnpm start:prod
-   ```
+2. Create a combined service from the tracked Git branch with CI/CD enabled.
+3. Use the repository `Dockerfile` with build context `/` and Dockerfile location `/Dockerfile`.
 
 4. Expose port `3000` over HTTP and configure the readiness health check as `GET /health` on port `3000`.
 5. Enable a Northflank public domain. Set `TELEGRAM_WEBHOOK_URL` to its HTTPS origin, without `/telegram/webhook`; the application appends that path itself.
-6. Add all variables listed in the root [README](../../README.md) via a Northflank Secrets group. Never place the token or Google credentials in the repository.
+6. Add all variables listed in the root [README](../../README.md) via Northflank Secret groups. Link the PostgreSQL `POSTGRES_URI` as the runtime alias `DATABASE_URL`. Keep `ADMIN_API_TOKEN` in a service-only Secret group or direct service runtime variable; it is not needed by calendar jobs. Never place tokens, credentials, or a database URI in the repository.
 7. Deploy. On a successful start the application calls Telegram `setWebhook` with the public endpoint and configured secret.
+
+The Docker entrypoint runs `prisma migrate deploy` before the NestJS server. Deploy the service once before using the cron jobs after every new migration.
 
 After deployment, verify:
 

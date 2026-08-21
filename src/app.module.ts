@@ -4,8 +4,10 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { CalendarModule } from './calendar/calendar.module';
 import { validateEnvironment } from './config/environment';
+import { DatabaseModule } from './database/database.module';
 import { GreetingsModule } from './greetings/greetings.module';
 import { TelegramModule } from './telegram/telegram.module';
+import { UsersModule } from './users/users.module';
 
 @Module({
   imports: [
@@ -14,8 +16,10 @@ import { TelegramModule } from './telegram/telegram.module';
       cache: true,
       validate: validateEnvironment,
     }),
+    DatabaseModule,
     CalendarModule,
     GreetingsModule,
+    UsersModule,
     TelegramModule,
   ],
   controllers: [AppController],

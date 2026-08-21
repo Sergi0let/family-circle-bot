@@ -1,11 +1,12 @@
 # Family Circle Bot
 
-Stateless Telegram bot for one family group. It reads a family Google Calendar and, optionally, a separate public-holidays calendar; it accepts updates through a Telegram webhook and sends calendar greetings through Northflank cron jobs. It has no database, migrations, or persistent application state.
+Telegram bot for one family group. It reads a family Google Calendar and, optionally, a separate public-holidays calendar; it accepts updates through a Telegram webhook, stores private-chat registration requests in PostgreSQL, and sends calendar greetings through Northflank cron jobs.
 
 ## Architecture
 
 ```text
 Telegram ── HTTPS webhook ──> Northflank service ──> grammY handlers
+                                             ├──> PostgreSQL (users)
                                              └──> Google Calendar API (read-only)
                                                   ├── family: PCU + birthdays
                                                   └── optional: public holidays
@@ -17,7 +18,8 @@ Northflank cron ──> one-shot Nest application context ──> Telegram Bot A
 - `/calendar_today` only returns data in that configured Telegram group.
 - Google credentials stay in environment secrets. The service account has only `calendar.events.readonly` and the calendar must be shared with it as **Reader**.
 - The bot validates Telegram's webhook secret with a timing-safe comparison.
-- Scheduled jobs are stateless. Northflank's `forbid` concurrency policy prevents overlapping runs.
+- `POST /api/users` is protected by `ADMIN_API_TOKEN`; it activates a private-chat user without exposing calendar data publicly.
+- Northflank's `forbid` concurrency policy prevents overlapping scheduled runs.
 
 ## Local development
 
@@ -49,6 +51,8 @@ Production variables:
 NODE_ENV="production"
 HOST="0.0.0.0"
 PORT="3000"
+DATABASE_URL="postgresql://<Northflank-user>:<password>@<private-host>:5432/<database>"
+ADMIN_API_TOKEN="<random secret for the user-management API>"
 TELEGRAM_TRANSPORT="webhook"
 TELEGRAM_BOT_TOKEN="<BotFather token>"
 TELEGRAM_WEBHOOK_URL="https://<public-northflank-domain>"
@@ -64,11 +68,43 @@ ANTHROPIC_MODEL="claude-haiku-4-5"
 
 `ANTHROPIC_API_KEY` is optional: without it the scheduled greeting uses its deterministic fallback. All Google and Telegram variables above are required in production.
 
+`DATABASE_URL` is also required in production. Link the Northflank PostgreSQL `POSTGRES_URI` into a runtime Secret group with the alias `DATABASE_URL`; do not manually paste a database password into the repository.
+
 Generate the webhook secret with:
 
 ```bash
 openssl rand -base64 48 | tr '+/' '-_' | tr -d '='
 ```
+
+Generate a separate `ADMIN_API_TOKEN` with the same command and add it as a runtime secret available to the public service only.
+
+## PostgreSQL migrations
+
+The first migration creates `telegram_users` with `PENDING`, `ACTIVE`, and `BLOCKED` states. The production Docker image runs `prisma migrate deploy` before NestJS starts, so deploy the **service first** after merging a migration. The cron jobs reuse the image but their custom commands do not run migrations.
+
+Local commands:
+
+```bash
+pnpm prisma:generate
+pnpm prisma:migrate:deploy
+```
+
+For local migration authoring, point `DATABASE_URL` to a disposable local PostgreSQL database and use `pnpm prisma migrate dev --name <migration-name>`. Do not run `migrate dev` against Northflank production data.
+
+## Private-user registration and admin API
+
+1. A person opens a private chat with the bot and sends `/start`.
+2. The bot stores their profile as `PENDING` and replies with their Telegram numeric ID. A pending record has no access to family calendar data.
+3. An administrator activates the record with the protected API:
+
+```bash
+curl --fail --request POST 'https://<public-northflank-domain>/api/users' \
+  --header 'Authorization: Bearer <ADMIN_API_TOKEN>' \
+  --header 'Content-Type: application/json' \
+  --data '{"telegramUserId":"123456789","firstName":"Іван"}'
+```
+
+The request is idempotent: it creates the user if absent or changes an existing `PENDING` record to `ACTIVE`. The API accepts `telegramUserId`, and optionally `privateChatId`, `firstName`, `lastName`, and `username`. After activation the person sends `/start` again and receives the active-profile response.
 
 ## Greeting sources and formats
 
@@ -92,6 +128,6 @@ pnpm cron:verify-calendar
 
 `cron:publish-calendar` is scheduled for 09:30 Kyiv time and only sends when it executes in the Kyiv 09:00 hour. Schedule it for both 06:30 and 07:30 UTC so it remains correct across daylight-saving changes; one of those two runs becomes a no-op. `cron:verify-calendar` only checks Google Calendar access and is safe to run daily.
 
-## Limits of the database-free design
+## Current limits
 
-This version deliberately cannot support multiple groups, self-service calendar connection, delivery history, retries after a process crash, or user-specific settings. Add PostgreSQL only when one of those requirements becomes real.
+The first database slice stores user access state only. It does not yet implement private calendar views, an allowlisted birthday list, delivery history, or the one-per-day LLM forecast cache. Those features should use `ACTIVE` users as the authorization boundary.

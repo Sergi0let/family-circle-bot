@@ -27,9 +27,9 @@ describe('validateEnvironment', () => {
     });
   });
 
-  it('rejects a production configuration without static bot settings', () => {
+  it('rejects a production configuration without database settings', () => {
     expect(() => validateEnvironment({ NODE_ENV: 'production' })).toThrow(
-      'GOOGLE_CALENDAR_ID must be set in production.',
+      'DATABASE_URL must be set in production.',
     );
   });
 
@@ -37,6 +37,7 @@ describe('validateEnvironment', () => {
     expect(
       validateEnvironment({
         NODE_ENV: 'production',
+        DATABASE_URL: 'postgresql://bot:password@database.internal:5432/family',
         GOOGLE_CALENDAR_ID: 'family@example.com',
         GOOGLE_SERVICE_ACCOUNT_JSON_BASE64: 'encoded-credentials',
         TELEGRAM_BOT_TOKEN: 'token',

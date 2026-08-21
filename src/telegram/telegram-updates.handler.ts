@@ -1,12 +1,17 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { TelegramUserStatus } from '@prisma/client';
 import { Bot, Context } from 'grammy';
+import { TelegramUsersService } from '../users/application/telegram-users.service';
 
 @Injectable()
 export class TelegramUpdatesHandler {
   private readonly logger = new Logger(TelegramUpdatesHandler.name);
 
-  constructor(private readonly configService: ConfigService) {}
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly telegramUsersService: TelegramUsersService,
+  ) {}
 
   register(bot: Bot<Context>): void {
     bot.command('start', (context) => this.handleStart(context));
@@ -15,10 +20,12 @@ export class TelegramUpdatesHandler {
   async handleStart(context: Context): Promise<void> {
     const chat = context.chat;
 
-    if (chat === undefined || chat.type === 'private') {
-      await context.reply(
-        'Додай мене до сімейної групи та виконай /start там.',
-      );
+    if (chat?.type === 'private') {
+      await this.registerPrivateUser(context);
+      return;
+    }
+
+    if (chat === undefined) {
       return;
     }
 
@@ -52,5 +59,48 @@ export class TelegramUpdatesHandler {
       (chat.type === 'group' || chat.type === 'supergroup') &&
       String(chat.id) === this.configService.get<string>('TELEGRAM_CHAT_ID')
     );
+  }
+
+  private async registerPrivateUser(context: Context): Promise<void> {
+    const user = context.from;
+    const chat = context.chat;
+
+    if (user === undefined || chat?.type !== 'private') {
+      await context.reply('Не вдалося визначити ваш Telegram профіль.');
+      return;
+    }
+
+    try {
+      const registeredUser =
+        await this.telegramUsersService.registerPrivateUser({
+          telegramUserId: String(user.id),
+          privateChatId: String(chat.id),
+          firstName: user.first_name,
+          ...(user.last_name === undefined ? {} : { lastName: user.last_name }),
+          ...(user.username === undefined ? {} : { username: user.username }),
+        });
+
+      if (registeredUser.status === TelegramUserStatus.ACTIVE) {
+        await context.reply(
+          'Ваш профіль Family Circle активний. Персональні функції з’являться тут.',
+        );
+        return;
+      }
+
+      if (registeredUser.status === TelegramUserStatus.BLOCKED) {
+        await context.reply(
+          'Доступ до Family Circle для цього профілю вимкнено.',
+        );
+        return;
+      }
+
+      await context.reply(
+        `Заявку збережено. Передайте адміністратору ваш Telegram ID: ${user.id}. Після підтвердження відкрийте /start ще раз.`,
+      );
+    } catch (error: unknown) {
+      const details = error instanceof Error ? error.stack : String(error);
+      this.logger.error('Failed to register private Telegram user.', details);
+      await context.reply('Не вдалося зберегти заявку. Спробуйте пізніше.');
+    }
   }
 }

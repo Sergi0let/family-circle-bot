@@ -1,0 +1,28 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TelegramUserStatus {
+  PENDING
+  ACTIVE
+  BLOCKED
+}
+
+model TelegramUser {
+  id             String             @id @default(cuid())
+  telegramUserId String             @unique @map("telegram_user_id")
+  privateChatId  String?            @unique @map("private_chat_id")
+  firstName      String?            @map("first_name")
+  lastName       String?            @map("last_name")
+  username       String?
+  status         TelegramUserStatus @default(PENDING)
+  createdAt      DateTime           @default(now()) @map("created_at")
+  updatedAt      DateTime           @updatedAt @map("updated_at")
+
+  @@map("telegram_users")
+}

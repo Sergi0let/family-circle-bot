@@ -7,8 +7,10 @@ const optionalText = z.preprocess(
 );
 
 const environmentSchema = z.object({
+  ADMIN_API_TOKEN: optionalText,
   ANTHROPIC_API_KEY: optionalText,
   ANTHROPIC_MODEL: z.string().trim().min(1).default('claude-haiku-4-5'),
+  DATABASE_URL: z.string().url().optional(),
   GOOGLE_CALENDAR_ID: optionalText,
   GOOGLE_PUBLIC_HOLIDAYS_CALENDAR_ID: optionalText,
   GOOGLE_CALENDAR_TIME_ZONE: z.string().trim().min(1).default('Europe/Kyiv'),
@@ -58,6 +60,7 @@ export function validateEnvironment(config: Record<string, unknown>) {
   }
 
   const requiredKeys = [
+    'DATABASE_URL',
     'GOOGLE_CALENDAR_ID',
     'GOOGLE_SERVICE_ACCOUNT_JSON_BASE64',
     'TELEGRAM_BOT_TOKEN',
