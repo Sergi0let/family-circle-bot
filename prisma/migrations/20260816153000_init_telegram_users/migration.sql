@@ -1,3 +1,6 @@
+-- CreateEnum
+CREATE TYPE "TelegramUserStatus" AS ENUM ('PENDING', 'ACTIVE', 'BLOCKED');
+
 -- CreateTable
 CREATE TABLE "telegram_users" (
     "id" TEXT NOT NULL,
