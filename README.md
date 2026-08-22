@@ -2,6 +2,10 @@
 
 Telegram bot for one family group. It reads a family Google Calendar and, optionally, a separate public-holidays calendar; it accepts updates through a Telegram webhook, stores private-chat registration requests in PostgreSQL, and sends calendar greetings through Northflank cron jobs.
 
+## Product direction and roadmap
+
+The agreed functionality, roles, Telegram flows, greeting policy, data-model direction, and phased implementation order are maintained in [docs/PRODUCT-ROADMAP.md](docs/PRODUCT-ROADMAP.md). Read it before taking the next feature task. It also records the intentional upcoming change from direct scheduled greeting publication to a moderator-approved draft workflow.
+
 ## Architecture
 
 ```text
@@ -124,6 +128,8 @@ Claude receives only a validated event type, title, birthday name, and optional 
 pnpm check
 pnpm cron:publish-calendar
 pnpm cron:verify-calendar
+
+
 ```
 
 `cron:publish-calendar` is scheduled for 09:30 Kyiv time and only sends when it executes in the Kyiv 09:00 hour. Schedule it for both 06:30 and 07:30 UTC so it remains correct across daylight-saving changes; one of those two runs becomes a no-op. `cron:verify-calendar` only checks Google Calendar access and is safe to run daily.
@@ -131,3 +137,11 @@ pnpm cron:verify-calendar
 ## Current limits
 
 The first database slice stores user access state only. It does not yet implement private calendar views, an allowlisted birthday list, delivery history, or the one-per-day LLM forecast cache. Those features should use `ACTIVE` users as the authorization boundary.
+
+## DB migration local
+
+```
+pnpm prisma:generate
+pnpm prisma:migrate:deploy
+pnpm start:dev
+```

@@ -24,3 +24,4 @@ describe('AppController', () => {
     });
   });
 });
+//node dist/cron/verify-calendar.js

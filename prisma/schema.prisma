@@ -13,6 +13,12 @@ enum TelegramUserStatus {
   BLOCKED
 }
 
+enum TelegramUserRole {
+  MEMBER
+  MODERATOR
+  ADMIN
+}
+
 model TelegramUser {
   id             String             @id @default(cuid())
   telegramUserId String             @unique @map("telegram_user_id")
@@ -21,6 +27,7 @@ model TelegramUser {
   lastName       String?            @map("last_name")
   username       String?
   status         TelegramUserStatus @default(PENDING)
+  role           TelegramUserRole   @default(MEMBER)
   createdAt      DateTime           @default(now()) @map("created_at")
   updatedAt      DateTime           @updatedAt @map("updated_at")
 

@@ -1,10 +1,12 @@
 import {
-  Body,
   BadRequestException,
+  Body,
   Controller,
+  Get,
   Headers,
   HttpCode,
   HttpStatus,
+  Param,
   Post,
   ServiceUnavailableException,
   UnauthorizedException,
@@ -42,6 +44,17 @@ export class UsersController {
     private readonly configService: ConfigService,
     private readonly telegramUsersService: TelegramUsersService,
   ) {}
+
+  @Get('/:telegramUserId')
+  @HttpCode(HttpStatus.OK)
+  async getUserById(
+    @Param('telegramUserId') telegramUserId: string,
+    @Headers('authorization') authorization?: string,
+    @Headers('x-admin-api-token') legacyToken?: string,
+  ) {
+    this.assertAdminToken(this.getProvidedToken(authorization, legacyToken));
+    return this.telegramUsersService.findByTelegramUserId(telegramUserId);
+  }
 
   @Post()
   @HttpCode(HttpStatus.CREATED)

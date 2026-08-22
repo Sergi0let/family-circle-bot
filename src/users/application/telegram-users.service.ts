@@ -48,6 +48,15 @@ export class TelegramUsersService {
     });
   }
 
+  async findByTelegramUserId(
+    telegramUserId: string,
+  ): Promise<TelegramUser | null> {
+    const user = await this.prisma.telegramUser.findUnique({
+      where: { telegramUserId },
+    });
+    return user;
+  }
+
   private toProfileUpdate(profile: TelegramUserProfile) {
     return {
       ...(profile.privateChatId === undefined
