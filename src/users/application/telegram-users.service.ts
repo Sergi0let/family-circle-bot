@@ -57,6 +57,24 @@ export class TelegramUsersService {
     return user;
   }
 
+  async findAll(): Promise<TelegramUser[]> {
+    return this.prisma.telegramUser.findMany();
+  }
+
+  async update(
+    telegramUserId: string,
+    data: Partial<TelegramUserProfile>,
+  ): Promise<TelegramUser> {
+    return this.prisma.telegramUser.update({
+      where: { telegramUserId },
+      data: data,
+    });
+  }
+
+  async delete(telegramUserId: string): Promise<void> {
+    await this.prisma.telegramUser.delete({ where: { telegramUserId } });
+  }
+
   private toProfileUpdate(profile: TelegramUserProfile) {
     return {
       ...(profile.privateChatId === undefined

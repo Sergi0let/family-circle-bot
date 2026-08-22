@@ -9,6 +9,7 @@ describe('CalendarService', () => {
   };
   const googleCalendarServiceMock = {
     assertReadable: jest.fn(),
+    listEventsInDateRange: jest.fn(),
     listEventsForToday: jest.fn(),
   };
   const service = new CalendarService(
@@ -76,6 +77,82 @@ describe('CalendarService', () => {
       now,
       'public-holidays',
     );
+  });
+
+  it('lists only birthday events from the family calendar in calendar order', async () => {
+    const now = new Date('2026-08-16T05:00:00.000Z');
+    googleCalendarServiceMock.listEventsInDateRange.mockResolvedValue([
+      {
+        description: 'сестра',
+        id: 'birthday-later',
+        isAllDay: true,
+        source: 'family',
+        startsOn: '2026-10-03',
+        summary: 'День народження: Олена',
+      },
+      {
+        description: null,
+        id: 'holiday',
+        isAllDay: true,
+        source: 'family',
+        startsOn: '2026-08-16',
+        summary: 'Успіння Пресвятої Богородиці',
+      },
+      {
+        description: null,
+        id: 'holy-trinity',
+        isAllDay: true,
+        source: 'family',
+        startsOn: '2026-05-31',
+        summary: 'День Святої Тройці, П’ятдесятниця',
+      },
+      {
+        description: null,
+        id: 'birthday-earlier',
+        isAllDay: true,
+        source: 'family',
+        startsOn: '2026-01-25',
+        summary: '🎂 День народження: Марія',
+      },
+    ]);
+
+    await expect(service.listBirthdays(now)).resolves.toEqual([
+      { name: 'Марія', startsOn: '2026-01-25' },
+      { name: 'Олена', relation: 'сестра', startsOn: '2026-10-03' },
+    ]);
+    expect(
+      googleCalendarServiceMock.listEventsInDateRange,
+    ).toHaveBeenCalledWith(
+      'family@example.com',
+      '2026-01-01',
+      '2027-01-01',
+      'family',
+    );
+  });
+
+  it('filters birthdays to the current Kyiv month', async () => {
+    googleCalendarServiceMock.listEventsInDateRange.mockResolvedValue([
+      {
+        description: null,
+        id: 'birthday-august',
+        isAllDay: true,
+        source: 'family',
+        startsOn: '2026-08-24',
+        summary: 'День народження: Олег',
+      },
+      {
+        description: null,
+        id: 'birthday-september',
+        isAllDay: true,
+        source: 'family',
+        startsOn: '2026-09-01',
+        summary: 'День народження: Ірина',
+      },
+    ]);
+
+    await expect(
+      service.listBirthdaysThisMonth(new Date('2026-08-16T05:00:00.000Z')),
+    ).resolves.toEqual([{ name: 'Олег', startsOn: '2026-08-24' }]);
   });
 
   it('checks access to the configured calendar', async () => {

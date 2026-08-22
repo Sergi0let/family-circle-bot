@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { FamilyCalendarEvent } from './family-calendar-event';
 import { GoogleCalendarService } from '../infrastructure/google-calendar.service';
+import { FamilyBirthday, toFamilyBirthday } from './family-birthday';
+import { FamilyCalendarEvent } from './family-calendar-event';
 
 interface CalendarSource {
   readonly calendarId: string;
@@ -25,6 +26,32 @@ export class CalendarService {
     return eventGroups.flat();
   }
 
+  async listBirthdays(now: Date = new Date()): Promise<FamilyBirthday[]> {
+    const year = this.getCalendarYear(now);
+    const events = await this.googleCalendarService.listEventsInDateRange(
+      this.getCalendarId(),
+      `${year}-01-01`,
+      `${year + 1}-01-01`,
+      'family',
+    );
+
+    return events
+      .map(toFamilyBirthday)
+      .filter((birthday): birthday is FamilyBirthday => birthday !== null)
+      .sort((left, right) => left.startsOn.localeCompare(right.startsOn));
+  }
+
+  async listBirthdaysThisMonth(
+    now: Date = new Date(),
+  ): Promise<FamilyBirthday[]> {
+    const month = this.getCalendarMonth(now);
+    const birthdays = await this.listBirthdays(now);
+
+    return birthdays.filter(
+      (birthday) => birthday.startsOn.slice(5, 7) === month,
+    );
+  }
+
   async assertReadable(): Promise<void> {
     await Promise.all(
       this.getCalendarSources().map(({ calendarId }) =>
@@ -35,6 +62,28 @@ export class CalendarService {
 
   private getCalendarId(): string {
     return this.configService.getOrThrow<string>('GOOGLE_CALENDAR_ID');
+  }
+
+  private getCalendarYear(now: Date): number {
+    return Number(
+      new Intl.DateTimeFormat('en-CA', {
+        timeZone: this.configService.get<string>(
+          'GOOGLE_CALENDAR_TIME_ZONE',
+          'Europe/Kyiv',
+        ),
+        year: 'numeric',
+      }).format(now),
+    );
+  }
+
+  private getCalendarMonth(now: Date): string {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: this.configService.get<string>(
+        'GOOGLE_CALENDAR_TIME_ZONE',
+        'Europe/Kyiv',
+      ),
+      month: '2-digit',
+    }).format(now);
   }
 
   private getPublicHolidaysCalendarId(): string | undefined {

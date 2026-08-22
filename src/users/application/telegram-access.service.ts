@@ -6,6 +6,7 @@ import { TelegramUsersService } from './telegram-users.service';
 export type TelegramAccess =
   | { readonly kind: 'NOT_REGISTERED' }
   | { readonly kind: 'PENDING'; readonly user: TelegramUser }
+  | { readonly kind: 'REJECTED'; readonly user: TelegramUser }
   | { readonly kind: 'BLOCKED'; readonly user: TelegramUser }
   | { readonly kind: 'ACTIVE'; readonly user: TelegramUser };
 
@@ -20,7 +21,7 @@ export class TelegramAccessService {
     const user =
       await this.telegramUsersService.findByTelegramUserId(telegramUserId);
 
-    if (!user) {
+    if (user === null) {
       return { kind: 'NOT_REGISTERED' };
     }
 
@@ -28,10 +29,57 @@ export class TelegramAccessService {
       return { kind: 'BLOCKED', user };
     }
 
+    if (this.accessPolicyService.isRejectedUser(user)) {
+      return { kind: 'REJECTED', user };
+    }
+
     if (!this.accessPolicyService.canUseMemberFeatures(user)) {
       return { kind: 'PENDING', user };
     }
 
     return { kind: 'ACTIVE', user };
+  }
+
+  async findActiveMemberByTelegramUserId(
+    telegramUserId: string,
+  ): Promise<TelegramUser | null> {
+    const access = await this.resolveAccess(telegramUserId);
+
+    if (
+      access.kind !== 'ACTIVE' ||
+      !this.accessPolicyService.canUseMemberFeatures(access.user)
+    ) {
+      return null;
+    }
+
+    return access.user;
+  }
+
+  async findActiveModerator(
+    telegramUserId: string,
+  ): Promise<TelegramUser | null> {
+    const access = await this.resolveAccess(telegramUserId);
+
+    if (
+      access.kind !== 'ACTIVE' ||
+      !this.accessPolicyService.canModerate(access.user)
+    ) {
+      return null;
+    }
+
+    return access.user;
+  }
+
+  async findActiveAdmin(telegramUserId: string): Promise<TelegramUser | null> {
+    const access = await this.resolveAccess(telegramUserId);
+
+    if (
+      access.kind !== 'ACTIVE' ||
+      !this.accessPolicyService.canAdminister(access.user)
+    ) {
+      return null;
+    }
+
+    return access.user;
   }
 }

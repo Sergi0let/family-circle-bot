@@ -47,6 +47,41 @@ export class GoogleCalendarService {
     rangeEnd.setUTCDate(rangeEnd.getUTCDate() + 1);
     rangeEnd.setUTCHours(rangeEnd.getUTCHours() + 14);
 
+    return (
+      await this.listEvents(calendarId, rangeStart, rangeEnd, timeZone, source)
+    ).filter((event) => event.startsOn === targetDate);
+  }
+
+  async listEventsInDateRange(
+    calendarId: string,
+    startsOn: string,
+    endsBefore: string,
+    source: CalendarEventSource = 'family',
+  ): Promise<FamilyCalendarEvent[]> {
+    const timeZone = this.configService.get<string>(
+      'GOOGLE_CALENDAR_TIME_ZONE',
+      DEFAULT_TIME_ZONE,
+    );
+    const rangeStart = new Date(`${startsOn}T00:00:00.000Z`);
+    const rangeEnd = new Date(`${endsBefore}T00:00:00.000Z`);
+
+    rangeStart.setUTCHours(rangeStart.getUTCHours() - 14);
+    rangeEnd.setUTCHours(rangeEnd.getUTCHours() + 14);
+
+    return (
+      await this.listEvents(calendarId, rangeStart, rangeEnd, timeZone, source)
+    ).filter(
+      (event) => event.startsOn >= startsOn && event.startsOn < endsBefore,
+    );
+  }
+
+  private async listEvents(
+    calendarId: string,
+    rangeStart: Date,
+    rangeEnd: Date,
+    timeZone: string,
+    source: CalendarEventSource,
+  ): Promise<FamilyCalendarEvent[]> {
     const items: calendar_v3.Schema$Event[] = [];
     let pageToken: string | undefined;
 
@@ -68,10 +103,7 @@ export class GoogleCalendarService {
     return items
       .filter((event) => event.status !== 'cancelled')
       .map((event) => this.toFamilyCalendarEvent(event, timeZone, source))
-      .filter(
-        (event): event is FamilyCalendarEvent =>
-          event !== null && event.startsOn === targetDate,
-      );
+      .filter((event): event is FamilyCalendarEvent => event !== null);
   }
 
   private getClient(): calendar_v3.Calendar {

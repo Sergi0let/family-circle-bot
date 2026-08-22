@@ -1,23 +1,28 @@
 import { ConfigService } from '@nestjs/config';
-import { TelegramUserStatus } from '@prisma/client';
-import { Context } from 'grammy';
-import { TelegramUsersService } from '../users/application/telegram-users.service';
+import { Context, InlineKeyboard } from 'grammy';
+import { AccessRequestsService } from '../access-requests/application/access-requests.service';
+import { TelegramAccessService } from '../users/application/telegram-access.service';
+import { TelegramAccessRequestNotifierService } from './telegram-access-request-notifier.service';
 import { TelegramUpdatesHandler } from './telegram-updates.handler';
 
 describe('TelegramUpdatesHandler', () => {
   const configServiceMock = { get: jest.fn(), getOrThrow: jest.fn() };
-  const telegramUsersServiceMock = { registerPrivateUser: jest.fn() };
+  const telegramAccessServiceMock = { resolveAccess: jest.fn() };
+  const accessRequestsServiceMock = { submit: jest.fn() };
+  const accessRequestNotifierMock = { notifyModerators: jest.fn() };
   const handler = new TelegramUpdatesHandler(
     configServiceMock as unknown as ConfigService,
-    telegramUsersServiceMock as unknown as TelegramUsersService,
+    telegramAccessServiceMock as unknown as TelegramAccessService,
+    accessRequestsServiceMock as unknown as AccessRequestsService,
+    accessRequestNotifierMock as unknown as TelegramAccessRequestNotifierService,
   );
 
   beforeEach(() => {
     jest.clearAllMocks();
     configServiceMock.get.mockReturnValue('-1001234567890');
     configServiceMock.getOrThrow.mockReturnValue('-1001234567890');
-    telegramUsersServiceMock.registerPrivateUser.mockResolvedValue({
-      status: TelegramUserStatus.PENDING,
+    telegramAccessServiceMock.resolveAccess.mockResolvedValue({
+      kind: 'NOT_REGISTERED',
     });
   });
 
@@ -73,7 +78,7 @@ describe('TelegramUpdatesHandler', () => {
     );
   });
 
-  it('registers a private-chat user as pending without granting access', async () => {
+  it('shows an explicit access-request button to an unregistered private user', async () => {
     const reply = jest.fn().mockResolvedValue(undefined);
     const context = {
       chat: { id: 123456789, type: 'private' },
@@ -87,14 +92,39 @@ describe('TelegramUpdatesHandler', () => {
 
     await handler.handleStart(context as unknown as Context);
 
-    expect(telegramUsersServiceMock.registerPrivateUser).toHaveBeenCalledWith({
-      telegramUserId: '123456789',
-      privateChatId: '123456789',
-      firstName: 'Іван',
-      username: 'ivan_family',
-    });
-    expect(reply).toHaveBeenCalledWith(
-      'Заявку збережено. Передайте адміністратору ваш Telegram ID: 123456789. Після підтвердження відкрийте /start ще раз.',
+    expect(telegramAccessServiceMock.resolveAccess).toHaveBeenCalledWith(
+      '123456789',
     );
+    expect(reply).toHaveBeenCalledTimes(1);
+  });
+
+  it('opens the same private menu from the approval notification button', async () => {
+    telegramAccessServiceMock.resolveAccess.mockResolvedValue({
+      kind: 'ACTIVE',
+      user: { firstName: 'Іван' },
+    });
+    const reply = jest.fn().mockResolvedValue(undefined);
+    const answerCallbackQuery = jest.fn().mockResolvedValue(undefined);
+
+    await (
+      handler as unknown as { openMenu: (context: Context) => Promise<void> }
+    ).openMenu({
+      chat: { id: 123456789, type: 'private' },
+      from: { id: 123456789, first_name: 'Іван' },
+      reply,
+      answerCallbackQuery,
+    } as unknown as Context);
+
+    expect(answerCallbackQuery).toHaveBeenCalledTimes(1);
+    expect(reply).toHaveBeenCalledWith('Вітаємо, Іван!', {
+      reply_markup: new InlineKeyboard()
+        .text('📅 Сьогодні', 'menu:today')
+        .row()
+        .text('🎂 Усі дні народження', 'menu:birthdays')
+        .row()
+        .text('🗓 Дні народження цього місяця', 'menu:birthdays:month')
+        .row()
+        .text('ℹ️ Як користуватися', 'menu:info'),
+    });
   });
 });

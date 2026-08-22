@@ -2,11 +2,13 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   Headers,
   HttpCode,
   HttpStatus,
   Param,
+  Patch,
   Post,
   ServiceUnavailableException,
   UnauthorizedException,
@@ -30,6 +32,7 @@ const createUserSchema = z
     privateChatId: telegramIdentifierSchema.optional(),
     firstName: z.string().trim().min(1).max(128).optional(),
     lastName: z.string().trim().min(1).max(128).optional(),
+    role: z.enum(['MEMBER', 'MODERATOR', 'ADMIN']).optional(),
     username: z
       .string()
       .trim()
@@ -56,6 +59,17 @@ export class UsersController {
     return this.telegramUsersService.findByTelegramUserId(telegramUserId);
   }
 
+  @Get()
+  @HttpCode(HttpStatus.OK)
+  async getUsers(
+    @Param('telegramUserId') telegramUserId: string,
+    @Headers('authorization') authorization?: string,
+    @Headers('x-admin-api-token') legacyToken?: string,
+  ) {
+    this.assertAdminToken(this.getProvidedToken(authorization, legacyToken));
+    return this.telegramUsersService.findAll();
+  }
+
   @Post()
   @HttpCode(HttpStatus.CREATED)
   async createOrActivate(
@@ -74,6 +88,38 @@ export class UsersController {
     return this.telegramUsersService.createOrActivate(
       parsed.data satisfies TelegramUserProfile,
     );
+  }
+
+  @Patch('/:telegramUserId')
+  @HttpCode(HttpStatus.OK)
+  async update(
+    @Param('telegramUserId') telegramUserId: string,
+    @Body() body: unknown,
+    @Headers('authorization') authorization?: string,
+    @Headers('x-admin-api-token') legacyToken?: string,
+  ) {
+    this.assertAdminToken(this.getProvidedToken(authorization, legacyToken));
+
+    if (typeof body !== 'object' || body === null) {
+      throw new BadRequestException('Invalid user payload.');
+    }
+    return this.telegramUsersService.update(telegramUserId, body);
+  }
+
+  @Delete('/:telegramUserId')
+  @HttpCode(HttpStatus.OK)
+  async delete(
+    @Param('telegramUserId') telegramUserId: string,
+    @Headers('authorization') authorization?: string,
+    @Headers('x-admin-api-token') legacyToken?: string,
+  ) {
+    this.assertAdminToken(this.getProvidedToken(authorization, legacyToken));
+
+    if (!telegramUserId) {
+      throw new BadRequestException('Invalid user telegram id');
+    }
+
+    return await this.telegramUsersService.delete(telegramUserId);
   }
 
   private getProvidedToken(

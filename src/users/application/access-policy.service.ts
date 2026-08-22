@@ -7,11 +7,11 @@ import {
 
 @Injectable()
 export class AccessPolicyService {
-  canUseMemberFeatures(user: TelegramUser) {
+  canUseMemberFeatures(user: TelegramUser): boolean {
     return user.status === TelegramUserStatus.ACTIVE;
   }
 
-  canModerate(user: TelegramUser) {
+  canModerate(user: TelegramUser): boolean {
     return (
       user.status === TelegramUserStatus.ACTIVE &&
       (user.role === TelegramUserRole.MODERATOR ||
@@ -19,14 +19,18 @@ export class AccessPolicyService {
     );
   }
 
-  canAdminister(user: TelegramUser) {
+  canAdminister(user: TelegramUser): boolean {
     return (
       user.status === TelegramUserStatus.ACTIVE &&
       user.role === TelegramUserRole.ADMIN
     );
   }
 
-  isBlockedUser(user: TelegramUser) {
+  isBlockedUser(user: TelegramUser): boolean {
     return user.status === TelegramUserStatus.BLOCKED;
+  }
+
+  isRejectedUser(user: TelegramUser): boolean {
+    return user.status === TelegramUserStatus.REJECTED;
   }
 }

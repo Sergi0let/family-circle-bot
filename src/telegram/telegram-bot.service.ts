@@ -7,10 +7,13 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { timingSafeEqual } from 'node:crypto';
-import { Bot, BotError, Context } from 'grammy';
+import { Bot, BotError, Context, InlineKeyboard } from 'grammy';
+import { TelegramAccessRequestsHandler } from './telegram-access-requests.handler';
 import { Update } from 'grammy/types';
 import { TelegramCalendarHandler } from './telegram-calendar.handler';
+import { TelegramMemberMenuHandler } from './telegram-member-menu.handler';
 import { TelegramUpdatesHandler } from './telegram-updates.handler';
+import { TelegramUserAdministrationHandler } from './telegram-user-administration.handler';
 
 const WEBHOOK_PATH = 'telegram/webhook';
 
@@ -24,6 +27,9 @@ export class TelegramBotService implements OnApplicationShutdown {
     private readonly configService: ConfigService,
     private readonly updatesHandler: TelegramUpdatesHandler,
     private readonly calendarHandler: TelegramCalendarHandler,
+    private readonly memberMenuHandler: TelegramMemberMenuHandler,
+    private readonly accessRequestsHandler: TelegramAccessRequestsHandler,
+    private readonly userAdministrationHandler: TelegramUserAdministrationHandler,
   ) {}
 
   async initialize(): Promise<void> {
@@ -36,6 +42,9 @@ export class TelegramBotService implements OnApplicationShutdown {
 
     this.updatesHandler.register(bot);
     this.calendarHandler.register(bot);
+    this.memberMenuHandler.register(bot);
+    this.accessRequestsHandler.register(bot);
+    this.userAdministrationHandler.register(bot);
     bot.catch((error: BotError<Context>) => {
       const cause = error.error;
       const details = cause instanceof Error ? cause.stack : String(cause);
@@ -57,7 +66,7 @@ export class TelegramBotService implements OnApplicationShutdown {
         secret_token: this.configService.getOrThrow<string>(
           'TELEGRAM_WEBHOOK_SECRET',
         ),
-        allowed_updates: ['message'],
+        allowed_updates: ['message', 'callback_query'],
       });
       this.webhookConfigured = true;
       this.logger.log('Telegram webhook configured.');
@@ -97,8 +106,16 @@ export class TelegramBotService implements OnApplicationShutdown {
     }
   }
 
-  async sendMessage(chatId: string, text: string): Promise<void> {
-    await this.getBot().api.sendMessage(chatId, text);
+  async sendMessage(
+    chatId: string,
+    text: string,
+    replyMarkup?: InlineKeyboard,
+  ): Promise<void> {
+    await this.getBot().api.sendMessage(
+      chatId,
+      text,
+      replyMarkup === undefined ? {} : { reply_markup: replyMarkup },
+    );
   }
 
   isReady(): boolean {

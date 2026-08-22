@@ -11,6 +11,7 @@ enum TelegramUserStatus {
   PENDING
   ACTIVE
   BLOCKED
+  REJECTED
 }
 
 enum TelegramUserRole {
@@ -31,5 +32,27 @@ model TelegramUser {
   createdAt      DateTime           @default(now()) @map("created_at")
   updatedAt      DateTime           @updatedAt @map("updated_at")
 
+  accessRequest AccessRequest? @relation("AccessRequestApplicant")
+
   @@map("telegram_users")
+}
+
+enum AccessRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+model AccessRequest {
+  id              String              @id @default(cuid())
+  applicantUserId String              @unique @map("applicant_user_id")
+  status          AccessRequestStatus @default(PENDING)
+  decidedByUserId String?             @map("decided_by_user_id")
+  requestedAt     DateTime            @default(now()) @map("requested_at")
+  decidedAt       DateTime?           @map("decided_at")
+
+  applicant TelegramUser @relation("AccessRequestApplicant", fields: [applicantUserId], references: [id], onDelete: Cascade)
+
+  @@map("access_requests")
 }

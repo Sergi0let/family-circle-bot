@@ -30,9 +30,9 @@ describe('toGreetingGenerationInput', () => {
     });
   });
 
-  it('accepts the current compact birthday title format', () => {
+  it('accepts a birthday title without a colon', () => {
     expect(
-      toGreetingGenerationInput(event({ summary: '🧔‍♀️ день Гея' })),
+      toGreetingGenerationInput(event({ summary: '🧔‍♀️ День народження Гея' })),
     ).toEqual({
       kind: 'birthday',
       occasion: 'День народження',
@@ -53,7 +53,7 @@ describe('toGreetingGenerationInput', () => {
     });
   });
 
-  it('uses the event description as the relationship for legacy birthday titles', () => {
+  it('uses the event description as the relationship when it is not in the title', () => {
     expect(
       toGreetingGenerationInput(
         event({
