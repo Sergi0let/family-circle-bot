@@ -52,6 +52,18 @@ export class CalendarService {
     );
   }
 
+  async listFamilyEventsInDateRange(
+    startsOn: string,
+    endsBefore: string,
+  ): Promise<FamilyCalendarEvent[]> {
+    return this.googleCalendarService.listEventsInDateRange(
+      this.getCalendarId(),
+      startsOn,
+      endsBefore,
+      'family',
+    );
+  }
+
   async assertReadable(): Promise<void> {
     await Promise.all(
       this.getCalendarSources().map(({ calendarId }) =>

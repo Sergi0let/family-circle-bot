@@ -124,6 +124,8 @@ describe('TelegramUpdatesHandler', () => {
         .row()
         .text('🗓 Дні народження цього місяця', 'menu:birthdays:month')
         .row()
+        .text('🤖 Запитати помічника', 'menu:assistant')
+        .row()
         .text('ℹ️ Як користуватися', 'menu:info'),
     });
   });

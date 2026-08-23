@@ -110,12 +110,25 @@ curl --fail --request POST 'https://<public-northflank-domain>/api/users' \
 
 The request is idempotent: it creates the user if absent or changes an existing `PENDING` record to `ACTIVE`. The API accepts `telegramUserId`, and optionally `privateChatId`, `firstName`, `lastName`, and `username`. After activation the person sends `/start` again and receives the active-profile response.
 
+## Family assistant
+
+An active family member can ask the read-only Claude assistant in a private bot chat with a regular message:
+
+```text
+Що сьогодні?
+У кого день народження цього місяця?
+Які події в суботу?
+Коли найближча сімейна подія?
+```
+
+`/ask <питання>` remains available as an alternative. The assistant can read only today's events, family-calendar events in a validated date range, and birthdays for a calendar month. It cannot create, update, or delete calendar events or user data. `ANTHROPIC_API_KEY` must be configured; the bot shows a temporary-unavailable message when Claude is not configured or cannot respond.
+
 ## Greeting sources and formats
 
 Every day at 09:30 Kyiv the cron reads the calendars and sends one message for each recognized all-day event:
 
 - PCU church holiday — imported event with an `iCalUID` beginning with `pcu-`.
-- Birthday in the family calendar — use `🎂 День народження: Ім’я | ким доводиться`. The `| ким доводиться` part is optional. The legacy forms `день Ім’я` and `день народження Ім’я` are still accepted.
+- Birthday in the family calendar — use `🎂 День народження: Ім’я | ким доводиться`. The `| ким доводиться` part is optional. The words `День народження` are required, so church holidays beginning with `День` are not mistaken for birthdays.
 - Public holiday — an all-day event from `GOOGLE_PUBLIC_HOLIDAYS_CALENDAR_ID`.
 
 Google's visible **Holidays** overlay is a separate calendar, not an event inside the family calendar. Set `GOOGLE_PUBLIC_HOLIDAYS_CALENDAR_ID` to a calendar the service account can read; otherwise the bot cannot see those displayed state holidays. The daily verification job checks both configured calendars.

@@ -8,6 +8,7 @@ import {
 } from '../application/greeting-generator';
 
 export const ANTHROPIC_MESSAGES_CLIENT = Symbol('ANTHROPIC_MESSAGES_CLIENT');
+export const ANTHROPIC_CLIENT = Symbol('ANTHROPIC_CLIENT');
 
 export interface ClaudeGreetingRequest {
   readonly input: GreetingGenerationInput;
@@ -19,19 +20,23 @@ export interface AnthropicMessagesClient {
   generate(request: ClaudeGreetingRequest): Promise<unknown>;
 }
 
-export const anthropicMessagesClientProvider: Provider = {
-  provide: ANTHROPIC_MESSAGES_CLIENT,
+export const anthropicClientProvider: Provider = {
+  provide: ANTHROPIC_CLIENT,
   inject: [ConfigService],
-  useFactory: (
-    configService: ConfigService,
-  ): AnthropicMessagesClient | null => {
+  useFactory: (configService: ConfigService): Anthropic | null => {
     const apiKey = configService.get<string>('ANTHROPIC_API_KEY');
 
-    if (apiKey === undefined) {
+    return apiKey === undefined ? null : new Anthropic({ apiKey });
+  },
+};
+
+export const anthropicMessagesClientProvider: Provider = {
+  provide: ANTHROPIC_MESSAGES_CLIENT,
+  inject: [ANTHROPIC_CLIENT],
+  useFactory: (client: Anthropic | null): AnthropicMessagesClient | null => {
+    if (client === null) {
       return null;
     }
-
-    const client = new Anthropic({ apiKey });
 
     return {
       async generate({ input, model, system }): Promise<unknown> {

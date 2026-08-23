@@ -155,6 +155,23 @@ describe('CalendarService', () => {
     ).resolves.toEqual([{ name: 'Олег', startsOn: '2026-08-24' }]);
   });
 
+  it('reads family events for an explicit date range', async () => {
+    googleCalendarServiceMock.listEventsInDateRange.mockResolvedValue([]);
+
+    await expect(
+      service.listFamilyEventsInDateRange('2026-08-23', '2026-08-24'),
+    ).resolves.toEqual([]);
+
+    expect(
+      googleCalendarServiceMock.listEventsInDateRange,
+    ).toHaveBeenCalledWith(
+      'family@example.com',
+      '2026-08-23',
+      '2026-08-24',
+      'family',
+    );
+  });
+
   it('checks access to the configured calendar', async () => {
     await service.assertReadable();
 

@@ -1,10 +1,15 @@
 import { Module } from '@nestjs/common';
 import { GreetingGenerator } from './application/greeting-generator';
-import { anthropicMessagesClientProvider } from './infrastructure/anthropic-client.provider';
+import {
+  ANTHROPIC_CLIENT,
+  anthropicClientProvider,
+  anthropicMessagesClientProvider,
+} from './infrastructure/anthropic-client.provider';
 import { ClaudeGreetingGenerator } from './infrastructure/claude-greeting-generator.service';
 
 @Module({
   providers: [
+    anthropicClientProvider,
     anthropicMessagesClientProvider,
     ClaudeGreetingGenerator,
     {
@@ -12,6 +17,6 @@ import { ClaudeGreetingGenerator } from './infrastructure/claude-greeting-genera
       useExisting: ClaudeGreetingGenerator,
     },
   ],
-  exports: [GreetingGenerator],
+  exports: [GreetingGenerator, ANTHROPIC_CLIENT],
 })
 export class GreetingsModule {}

@@ -9,6 +9,7 @@ import { ConfigService } from '@nestjs/config';
 import { timingSafeEqual } from 'node:crypto';
 import { Bot, BotError, Context, InlineKeyboard } from 'grammy';
 import { TelegramAccessRequestsHandler } from './telegram-access-requests.handler';
+import { TelegramAssistantHandler } from './telegram-assistant.handler';
 import { Update } from 'grammy/types';
 import { TelegramCalendarHandler } from './telegram-calendar.handler';
 import { TelegramMemberMenuHandler } from './telegram-member-menu.handler';
@@ -30,6 +31,7 @@ export class TelegramBotService implements OnApplicationShutdown {
     private readonly memberMenuHandler: TelegramMemberMenuHandler,
     private readonly accessRequestsHandler: TelegramAccessRequestsHandler,
     private readonly userAdministrationHandler: TelegramUserAdministrationHandler,
+    private readonly assistantHandler: TelegramAssistantHandler,
   ) {}
 
   async initialize(): Promise<void> {
@@ -45,6 +47,7 @@ export class TelegramBotService implements OnApplicationShutdown {
     this.memberMenuHandler.register(bot);
     this.accessRequestsHandler.register(bot);
     this.userAdministrationHandler.register(bot);
+    this.assistantHandler.register(bot);
     bot.catch((error: BotError<Context>) => {
       const cause = error.error;
       const details = cause instanceof Error ? cause.stack : String(cause);
